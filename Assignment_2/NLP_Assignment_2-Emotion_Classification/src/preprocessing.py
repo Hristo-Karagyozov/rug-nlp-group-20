@@ -1,6 +1,4 @@
 import pandas as pd
-import string
-from nltk.corpus import stopwords
 import csv
 
 
@@ -15,6 +13,6 @@ def data_in_first_cell():
                 writer.writerow(new_row)
 
 
-def load_data():
-    training_df = pd.read_csv("data/training.csv")
+def load_data(file_path):
+    training_df = pd.read_csv(file_path)
     print(training_df.head(5))
