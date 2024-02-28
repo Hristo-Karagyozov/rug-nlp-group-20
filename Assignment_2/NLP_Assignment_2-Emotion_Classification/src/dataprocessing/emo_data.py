@@ -1,6 +1,11 @@
+from collections import namedtuple
+
 import pandas as pd
 import torch
 from torch.utils.data import Dataset, DataLoader
+
+
+DataRet = namedtuple('DataRet', ('ids', 'attention_mask', 'token_type_ids', 'labels'))
 
 
 class EmoData(Dataset):
@@ -18,6 +23,7 @@ class EmoData(Dataset):
         self.article_ids = self.data.article_id
         self.essay = self.data.essay
         self.labels = self.data.emotion
+        self.emotion_to_int = {emotion : idx for idx, emotion in enumerate(self.labels.unique())}
 
     def __len__(self):
         return len(self.essay)
@@ -27,23 +33,21 @@ class EmoData(Dataset):
         ws_sep_phrase = " ".join(phrase.split())
 
         inputs = self.tokenizer.encode_plus(
-            phrase,
+            ws_sep_phrase,
             None,
             add_special_tokens=True,
             max_length=self.context_window,
-            pad_to_max_length=True,
+            padding='max_length',
             return_token_type_ids=True
         )
 
         ids = inputs['input_ids']
         mask = inputs['attention_mask']
-        token_type_ids = ['token_type_ids']
-        return {
-            'ids' : torch.tensor(ids, dtype=torch.long),
-            'mask' : torch.tensor(mask, dtype=torch.long),
-            'token_type_ids': torch.tensor(token_type_ids, dtype=torch.long),
-            'labels': torch.tensor(self.labels[idx], dtype=torch.long)
-        }
+        token_type_ids = inputs['token_type_ids']
 
-    def labels(self):
-        return self.labels().unique()
+        return DataRet(
+            torch.tensor(ids, dtype=torch.long),
+            torch.tensor(mask, dtype=torch.long),
+            torch.tensor(token_type_ids, dtype=torch.long),
+            torch.tensor(self.emotion_to_int[self.labels[idx]], dtype=torch.long)
+        )

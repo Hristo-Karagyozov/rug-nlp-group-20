@@ -4,13 +4,13 @@ import torch
 from torch.nn import CrossEntropyLoss
 from torch.optim import Adam
 from torch.utils.data import DataLoader
-from transformers import RobertaTokenizer
+from transformers import RobertaTokenizer, RobertaForSequenceClassification
 import yaml
 
 from dataprocessing import EmoData
 from my_util import *
-from networks import EmoClassifier
 from train_classifier import train_classifier
+
 
 parser = argparse.ArgumentParser(description="Deep learning with primacy bias")
 run_id = datetime.now().strftime('%b_%d_%H_%M_%S')
@@ -22,7 +22,7 @@ parser.add_argument("--config", type=str, required=True, help="Path of the file 
 args = parser.parse_args()
 
 
-def main(experiment_tag, run_config, log_dir=None):
+def main(experiment_tag, run_config, log_dir=None, tensorboard_dir=None):
     """
     Runs an experiment named `run_tag` with hyperparameters from `run_config`. Results are stored in `log_dir`. Returns
     a tuple of training losses and testing losses over time.
@@ -42,18 +42,36 @@ def main(experiment_tag, run_config, log_dir=None):
     test_data = EmoData(args.test_data, tokenizer, run_config['context_window'])
     train_loader = DataLoader(training_data, batch_size=run_config['batch_size'], shuffle=True)
     test_loader = DataLoader(test_data, batch_size=run_config['test_batch_size'], shuffle=True)
-    classifier = EmoClassifier(run_config['model'], len(training_data.labels)).to(device=device)
+
+    classifier = RobertaForSequenceClassification.from_pretrained(
+        config['model'],
+        num_labels=len(training_data.labels.unique()),
+    )
+    # Freeze pre-trained weights
+    classifier.roberta.trainable = False
 
     loss = CrossEntropyLoss()
     optimizer = Adam(classifier.parameters())
-    training_losses, test_losses = train_classifier(config, loss, optimizer)
+    training_losses, test_losses = train_classifier(
+        classifier,
+        config,
+        loss,
+        optimizer,
+        train_loader,
+        test_loader,
+        tensorboard_dir=tensorboard_dir,
+        save_dir=os.path.join(log_dir, "models") if log_dir is not None else None
+    )
 
-    return training_losses, test_losses
+    return Curve(training_losses, tag="Train loss"), Curve(test_losses, tag="Test loss")
 
 
 if __name__ == "__main__":
 
     base_output_path = os.path.join("data", "results", f"{args.run_id}")
+    tensorboard_dir = os.path.join(base_output_path, "tensorboard")
+    if not args.no_output:
+        open_tensorboard(tensorboard_dir)
 
     if not args.no_output:
         print(f"Saving results to: {base_output_path}")
@@ -70,7 +88,12 @@ if __name__ == "__main__":
     for tag, config in configs.items():
 
         # Run the experiment with the current config
-        train_curve, test_curve = main(tag, config, log_dir=None if args.no_output else os.path.join(base_output_path, tag))
+        train_curve, test_curve = main(
+            tag,
+            config,
+            log_dir=None if args.no_output else os.path.join(base_output_path, tag),
+            tensorboard_dir=tensorboard_dir
+        )
 
         # add the resulting curves to their respective lists
         training_curves.append(train_curve)
@@ -80,5 +103,8 @@ if __name__ == "__main__":
         plot_curves(training_curves)
         plot_curves(testing_curves)
     else:
-        plot_curves(training_curves, base_output_path, "TrainCurve", save_data=True)
-        plot_curves(testing_curves, base_output_path, "EvalCurve", save_data=True)
+        if len(configs) > 1:
+            plot_curves(training_curves, base_output_path, os.path.join(base_output_path), "TrainCurve", save_data=True)
+            plot_curves(testing_curves, base_output_path, os.path.join(base_output_path), "EvalCurve", save_data=True)
+        else:
+            plot_curves(training_curves + testing_curves, os.path.join(base_output_path), "LossCurve", save_data=True)
