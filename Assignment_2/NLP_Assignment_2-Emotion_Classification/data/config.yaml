@@ -1,7 +1,8 @@
-ExampleBERTa :                        # This is the experiment_tag (i.e. the name of the experiment)
-    exampleHyperparameter1 : 2        # Parsed as an int
-    exampleHyperparameter2 : null     # Parsed as None
-    exampleHyperparameter3 : [1,2]    # Parsed as a list
-    exampleHyperparameter4 : somestr  # Parsed as a str
-    exampleHyperparameter5 : 1.2      # Parsed as a float
-    exampleHyperparameter6 : 1e5      # WARNING: This is parsed as a str
+RoBERTA :
+    model : roberta-base
+    learning_rate   : 0.00001
+    batch_size      : 16
+    test_batch_size : 16
+    n_epochs        : 1
+    context_window  : 256
+
