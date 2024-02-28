@@ -20,14 +20,15 @@ def copy_file(source_file, destination_dir):
     shutil.copy(source_file, destination_path)
 
 
-def explore_data(data, save_path=None):
+def plot_curves(curves, save_path=None, name="", save_data=False):
     """
-    Generates some plots to visualize the data.
+    Plots a list of curves in one figure.
 
     Parameters
     ----------
-    data : pandas.DataFrame
+    curves : list
     save_path : str
-        Directory where the plots are saved (None means no saving)
+    name : str
+    save_data : bool
     """
-    pass
+    print(f"Dummy plotting")
