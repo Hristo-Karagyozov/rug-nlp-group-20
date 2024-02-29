@@ -50,14 +50,17 @@ def main(experiment_tag, run_config, log_dir=None, tensorboard_dir=None):
         config['model'],
         num_labels=len(training_data.labels.unique()),
     ).to(device=device)
+
     # Freeze pre-trained weights
-    classifier.roberta.trainable = False
+    if run_config['freeze_weights']:
+        for param in classifier.roberta.parameters():
+            param.requires_grad = False
 
     loss = CrossEntropyLoss()
-    optimizer = AdamW(classifier.parameters())
+    optimizer = AdamW(classifier.parameters(), lr=run_config['learning_rate'], weight_decay=run_config['weight_decay'])
     scheduler = get_linear_schedule_with_warmup(
         optimizer,
-        num_warmup_steps=0,
+        num_warmup_steps=int(len(train_loader) * run_config['n_epochs'] * 0.2),
         num_training_steps=len(train_loader) * run_config['n_epochs']
     )
     training_losses, test_losses = train_classifier(
@@ -68,7 +71,7 @@ def main(experiment_tag, run_config, log_dir=None, tensorboard_dir=None):
         scheduler,
         train_loader,
         test_loader,
-        tensorboard_dir=tensorboard_dir,
+        tensorboard_dir=os.path.join(tensorboard_dir, experiment_tag),
         save_dir=os.path.join(log_dir, "models") if log_dir is not None else None
     )
 

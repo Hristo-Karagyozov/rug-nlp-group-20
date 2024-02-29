@@ -85,6 +85,8 @@ def train_classifier(
                     outputs = classifier(ids.to(device), attention_mask.to(device), token_type_ids.to(device))
                     one_hot_labels = torch.nn.functional.one_hot(labels.to(device), len(outputs.logits[0])).float()
                     loss = loss_fn(outputs.logits, one_hot_labels)
+                if writer is not None:
+                    writer.add_scalar("Batch Test loss", loss, global_step=epoch * len(test_loader) + batch)
                 test_batch_losses.append(loss.cpu().numpy())
                 progress.update(testing, advance=1)
 

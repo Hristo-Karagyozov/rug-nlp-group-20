@@ -22,7 +22,7 @@ class Curve:
         """
 
         if len(time) == 0 and len(mean) != 0:
-            time = np.array([x for x in range(len(mean))])
+            time = np.array([x for x, _ in enumerate(mean)])
         self.mean = mean
         self.time = time
         self.tag = tag
