@@ -6,7 +6,18 @@ from rich.progress import Progress, TextColumn, BarColumn, TimeRemainingColumn, 
 from torch.utils.tensorboard import SummaryWriter
 
 
-def train_classifier(classifier, config, loss_fn, optimizer, train_loader, test_loader, tensorboard_dir=None, save_dir=None):
+def train_classifier(
+        classifier,
+        config,
+        loss_fn,
+        optimizer,
+        scheduler,
+        train_loader,
+        test_loader,
+        tensorboard_dir=None,
+        save_dir=None,
+        device='cuda' if torch.cuda.is_available() else 'cpu'
+):
     """
     Parameters
     ----------
@@ -21,6 +32,9 @@ def train_classifier(classifier, config, loss_fn, optimizer, train_loader, test_
         Directory where the model state_dicts are saved after each epoch (Default is None and means no saving).
     tensorboard_dir : str
         Directory where tensorboard logs are stored (default is None and means no logging).
+    device : str
+    scheduler :
+        The learning rate scheduler
 
     Returns
     -------
@@ -47,16 +61,17 @@ def train_classifier(classifier, config, loss_fn, optimizer, train_loader, test_
 
             # Training
             classifier.train()
-            training = progress.add_task(f"[blue]Train: Epoch {epoch}/{config['n_epochs']}", total=len(train_loader)-1)
+            training = progress.add_task(f"[blue]Train: Epoch {epoch+1}/{config['n_epochs']}", total=len(train_loader))
             for batch , (ids, attention_mask, token_type_ids, labels) in enumerate(train_loader):
                 classifier.zero_grad()
-                outputs = classifier(ids, attention_mask, token_type_ids)
-                one_hot_labels = torch.nn.functional.one_hot(labels, len(outputs.logits[0])).float()
+                outputs = classifier(ids.to(device), attention_mask.to(device), token_type_ids.to(device))
+                one_hot_labels = torch.nn.functional.one_hot(labels.to(device), len(outputs.logits[0])).float()
                 loss = loss_fn(outputs.logits, one_hot_labels)
                 loss.backward()
                 torch.nn.utils.clip_grad_norm_(classifier.parameters(), 1.0)
                 optimizer.step()
-                train_batch_losses.append(loss.detach().numpy())
+                scheduler.step()
+                train_batch_losses.append(loss.detach().cpu().numpy())
                 if writer is not None:
                     writer.add_scalar("Batch Train loss", loss, global_step=epoch * len(train_loader) + batch)
                 progress.update(training, advance=1)
@@ -64,13 +79,13 @@ def train_classifier(classifier, config, loss_fn, optimizer, train_loader, test_
 
             # Testing
             classifier.eval()
-            testing = progress.add_task(f"[red]Testing:", total=len(test_loader)-1)
+            testing = progress.add_task(f"[red]Testing:", total=len(test_loader))
             for batch, (ids, attention_mask, token_type_ids, labels) in enumerate(test_loader):
                 with torch.no_grad():
-                    outputs = classifier(ids, attention_mask, token_type_ids)
-                    one_hot_labels = torch.nn.functional.one_hot(labels, len(outputs.logits[0])).float()
+                    outputs = classifier(ids.to(device), attention_mask.to(device), token_type_ids.to(device))
+                    one_hot_labels = torch.nn.functional.one_hot(labels.to(device), len(outputs.logits[0])).float()
                     loss = loss_fn(outputs.logits, one_hot_labels)
-                test_batch_losses.append(loss.numpy())
+                test_batch_losses.append(loss.cpu().numpy())
                 progress.update(testing, advance=1)
 
             test_epoch_losses.append(np.mean(test_batch_losses[-len(test_loader):]))

@@ -2,9 +2,8 @@ import argparse
 from datetime import datetime
 import torch
 from torch.nn import CrossEntropyLoss
-from torch.optim import Adam
 from torch.utils.data import DataLoader
-from transformers import RobertaTokenizer, RobertaForSequenceClassification
+from transformers import RobertaTokenizer, RobertaForSequenceClassification, AdamW, get_linear_schedule_with_warmup
 import yaml
 
 from dataprocessing import EmoData
@@ -14,11 +13,15 @@ from train_classifier import train_classifier
 
 parser = argparse.ArgumentParser(description="Deep learning with primacy bias")
 run_id = datetime.now().strftime('%b_%d_%H_%M_%S')
-parser.add_argument("--run-id", type=str, default=run_id, help="Name of the current run (results are stored at data/results/<run-id>)")
-parser.add_argument("--train-data", type=str, help="Path of the CSV file that contains the training data", required=True)
-parser.add_argument("--test-data", type=str, help="Path of the CSV file that contains the test data", required=True)
 parser.add_argument("--no-output", action="store_true", help="For testing: Disables output.")
-parser.add_argument("--config", type=str, required=True, help="Path of the file that contains the run configurations")
+parser.add_argument("--run-id", type=str, default=run_id,
+                    help="Name of the current run (results are stored at data/results/<run-id>)")
+parser.add_argument("--train-data", type=str, default="data/raw/train.csv",
+                    help="Path of the CSV file that contains the training data")
+parser.add_argument("--test-data", type=str, default="data/raw/test.csv",
+                    help="Path of the CSV file that contains the test data")
+parser.add_argument("--config", type=str, default="data/config.yaml",
+                    help="Path of the file that contains the run configurations")
 args = parser.parse_args()
 
 
@@ -46,17 +49,23 @@ def main(experiment_tag, run_config, log_dir=None, tensorboard_dir=None):
     classifier = RobertaForSequenceClassification.from_pretrained(
         config['model'],
         num_labels=len(training_data.labels.unique()),
-    )
+    ).to(device=device)
     # Freeze pre-trained weights
     classifier.roberta.trainable = False
 
     loss = CrossEntropyLoss()
-    optimizer = Adam(classifier.parameters())
+    optimizer = AdamW(classifier.parameters())
+    scheduler = get_linear_schedule_with_warmup(
+        optimizer,
+        num_warmup_steps=0,
+        num_training_steps=len(train_loader) * run_config['n_epochs']
+    )
     training_losses, test_losses = train_classifier(
         classifier,
         config,
         loss,
         optimizer,
+        scheduler,
         train_loader,
         test_loader,
         tensorboard_dir=tensorboard_dir,
