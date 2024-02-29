@@ -74,7 +74,7 @@ def main(experiment_tag, run_config, log_dir=None, tensorboard_dir=None):
         save_dir=os.path.join(log_dir, "models") if log_dir is not None else None
     )
 
-    return LossCurve(mean=training_losses, tag="Train loss"), LossCurve(mean=test_losses, tag="Test loss"), evaluation_metrics
+    return LossCurve(mean=training_losses, tag=experiment_tag), LossCurve(mean=test_losses, tag=experiment_tag), evaluation_metrics
 
 
 if __name__ == "__main__":
@@ -117,6 +117,6 @@ if __name__ == "__main__":
     else:
         if len(configs) > 1:
             plot_curves(training_curves, base_output_path, "TrainCurve", save_data=True)
-            plot_curves(testing_curves, base_output_path, "EvalCurve", save_data=True)
+            plot_curves(testing_curves, base_output_path, "TestCurve", save_data=True)
         else:
             plot_curves(training_curves + testing_curves, base_output_path, "LossCurve", save_data=True)
