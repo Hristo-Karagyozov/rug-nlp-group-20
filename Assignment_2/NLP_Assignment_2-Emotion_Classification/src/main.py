@@ -1,6 +1,5 @@
 import argparse
 from datetime import datetime
-import torch
 from torch.nn import CrossEntropyLoss
 from torch.utils.data import DataLoader
 from transformers import RobertaTokenizer, RobertaForSequenceClassification, AdamW, get_linear_schedule_with_warmup
@@ -60,10 +59,10 @@ def main(experiment_tag, run_config, log_dir=None, tensorboard_dir=None):
     optimizer = AdamW(classifier.parameters(), lr=run_config['learning_rate'], weight_decay=run_config['weight_decay'])
     scheduler = get_linear_schedule_with_warmup(
         optimizer,
-        num_warmup_steps=int(len(train_loader) * run_config['n_epochs'] * 0.2),
+        num_warmup_steps=int(len(train_loader) * run_config['n_epochs'] * run_config['warmup_fraction']),
         num_training_steps=len(train_loader) * run_config['n_epochs']
     )
-    training_losses, test_losses = train_classifier(
+    training_losses, test_losses, evaluation_metrics = train_classifier(
         classifier,
         config,
         loss,
@@ -75,7 +74,7 @@ def main(experiment_tag, run_config, log_dir=None, tensorboard_dir=None):
         save_dir=os.path.join(log_dir, "models") if log_dir is not None else None
     )
 
-    return Curve(training_losses, tag="Train loss"), Curve(test_losses, tag="Test loss")
+    return LossCurve(mean=training_losses, tag="Train loss"), LossCurve(mean=test_losses, tag="Test loss"), evaluation_metrics
 
 
 if __name__ == "__main__":
@@ -100,7 +99,7 @@ if __name__ == "__main__":
     for tag, config in configs.items():
 
         # Run the experiment with the current config
-        train_curve, test_curve = main(
+        train_curve, test_curve, evaluations = main(
             tag,
             config,
             log_dir=None if args.no_output else os.path.join(base_output_path, tag),
@@ -111,12 +110,13 @@ if __name__ == "__main__":
         training_curves.append(train_curve)
         testing_curves.append(test_curve)
 
+        print(evaluations[-1])
     if args.no_output:
         plot_curves(training_curves)
         plot_curves(testing_curves)
     else:
         if len(configs) > 1:
-            plot_curves(training_curves, base_output_path, os.path.join(base_output_path), "TrainCurve", save_data=True)
-            plot_curves(testing_curves, base_output_path, os.path.join(base_output_path), "EvalCurve", save_data=True)
+            plot_curves(training_curves, base_output_path, "TrainCurve", save_data=True)
+            plot_curves(testing_curves, base_output_path, "EvalCurve", save_data=True)
         else:
-            plot_curves(training_curves + testing_curves, os.path.join(base_output_path), "LossCurve", save_data=True)
+            plot_curves(training_curves + testing_curves, base_output_path, "LossCurve", save_data=True)

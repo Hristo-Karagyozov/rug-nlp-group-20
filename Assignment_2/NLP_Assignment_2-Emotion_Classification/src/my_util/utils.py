@@ -1,37 +1,34 @@
 import os
 import shutil
+from collections import namedtuple
+
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
 from tensorboard import program
 
 
-class Curve:
+Bar = namedtuple("Bar", ("mean", "std", "tag"))
+Curve = namedtuple("Curve", ("time", "mean", "std", "tag"))
+
+
+def LossCurve(mean=np.array([]), time=np.array([]), std=np.array([]), tag="Curve"):
     """
-    Class that is composed of several numpy arrays and a string for easier plotting of curves.
+    Parameters
+    ----------
+    time : np.ndarray
+    mean : np.ndarray
+    std : np.ndarray
+    tag : str
+    Returns
+    -------
+    Curve
     """
-
-    def __init__(self, mean=np.array([]), time=np.array([]), tag="Curve"):
-        """
-
-        Parameters
-        ----------
-        time : np.ndarray
-        mean : np.ndarray
-        tag : str
-        """
-
-        if len(time) == 0 and len(mean) != 0:
-            time = np.array([x for x, _ in enumerate(mean)])
-        self.mean = mean
-        self.time = time
-        self.tag = tag
-
-    def add_point(self, mean, timestep=None):
-        if timestep is None:
-            timestep = self.time[-1] + 1
-        self.time = np.append(self.time, timestep)
-        self.mean = np.append(self.mean, mean)
+    if len(time) == 0 and len(mean) != 0:
+        time = np.array([x for x, _ in enumerate(mean)])
+    if len(std) == 0 and len(mean) != 0:
+        std = np.zeros(len(mean))
+    return Curve(time, mean, std, tag)
 
 
 def copy_file(source_file, destination_dir):
