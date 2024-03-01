@@ -35,8 +35,9 @@ class Metrics:
         return f1_score(self.true_labels, self.predicted_labels, average='weighted')
 
     @property
-    def report(self):
+    def classification_report(self):
         return classification_report(self.true_labels, self.predicted_labels)
+
 
 def LossCurve(mean=np.array([]), time=np.array([]), std=np.array([]), tag="Curve"):
     """

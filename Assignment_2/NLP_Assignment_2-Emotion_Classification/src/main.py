@@ -5,7 +5,8 @@ import optuna
 from optuna.trial import TrialState
 from torch.nn import CrossEntropyLoss
 from torch.utils.data import DataLoader
-from transformers import RobertaTokenizer, RobertaForSequenceClassification, AdamW, get_linear_schedule_with_warmup
+from torch.optim import AdamW
+from transformers import RobertaTokenizer, RobertaForSequenceClassification, get_linear_schedule_with_warmup
 import yaml
 
 from dataprocessing import EmoData
@@ -110,7 +111,7 @@ def main(run_config, trial=None, save_dir=None, tensorboard_dir=None):
         device=device
     )
     if tuning:
-        return metrics[-1].f1_score()
+        return metrics[-1].f1_score
     else:
         return LossCurve(mean=training_losses, tag="Train"), LossCurve(mean=test_losses, tag="Test"), metrics
 
