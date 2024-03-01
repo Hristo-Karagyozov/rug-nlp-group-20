@@ -6,6 +6,7 @@ from sklearn.model_selection import train_test_split
 from keras.layers import Dense
 from keras.models import Sequential
 from gensim.models import Word2Vec
+from keras import optimizers
 import numpy as np
 
 
@@ -44,12 +45,14 @@ def compute_doc_vectors(docs, w2v_model):
         doc_vectors.append(doc_vector)
     return np.array(doc_vectors)
 
+
 def build_model(input_shape):
     model = Sequential()
     model.add(Dense(64, activation='relu', input_shape=input_shape))
-    model.add(Dropout(0.5))
+
     model.add(Dense(1, activation='sigmoid'))
     return model
+
 
 # Main function
 def main():
@@ -74,7 +77,7 @@ def main():
     model = build_model(input_shape=(train_x_vectors.shape[1],))
 
     # Compile the model
-    model.compile(optimizer=Adam(learning_rate=0.001), loss='binary_crossentropy', metrics=['accuracy'])
+    model.compile(optimizer=optimizers.Adam(learning_rate=0.0001), loss='binary_crossentropy', metrics=['accuracy'])
 
     # Train the model
     history = model.fit(train_x_vectors, train_y, epochs=10, batch_size=32, validation_data=(val_x_vectors, val_y))
