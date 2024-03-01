@@ -18,19 +18,24 @@ class Metrics:
         self.true_labels = true_labels
         self.predicted_labels = predicted_labels
 
+    @property
     def confusion_matrix(self):
         return confusion_matrix(self.true_labels, self.predicted_labels)
 
+    @property
     def accuracy(self):
         return accuracy_score(self.true_labels, self.predicted_labels)
 
+    @property
     def precision(self):
         return precision_score(self.true_labels, self.predicted_labels, average='weighted')
 
+    @property
     def f1_score(self):
         return f1_score(self.true_labels, self.predicted_labels, average='weighted')
 
-    def classification_report(self):
+    @property
+    def report(self):
         return classification_report(self.true_labels, self.predicted_labels)
 
 def LossCurve(mean=np.array([]), time=np.array([]), std=np.array([]), tag="Curve"):

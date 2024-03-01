@@ -102,9 +102,10 @@ def train_classifier(
         test_epoch_losses.append(loss)
         metrics.append(metric)
 
-        trial.report(metric.f1_score(), epoch)
-        if trial.should_prune():
-            raise optuna.TrialPruned()
+        if trial is not None:
+            trial.report(metric.f1_score, epoch)
+            if trial.should_prune():
+                raise optuna.TrialPruned()
 
     return train_epoch_losses, test_epoch_losses, metrics
 

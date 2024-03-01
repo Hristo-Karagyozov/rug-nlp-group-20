@@ -58,9 +58,12 @@ def main(run_config, trial=None, save_dir=None, tensorboard_dir=None):
 
     # Get suggested HP's through optuna when tuning
     tuning = False
+    tag= "Final"
     if trial is not None:
         tuning = True
         run_config = config_from_trial(run_config, trial)
+        tag = trial.number
+
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -102,8 +105,8 @@ def main(run_config, trial=None, save_dir=None, tensorboard_dir=None):
         train_loader,
         eval_loader,
         trial=trial,
-        tensorboard_dir=os.path.join(tensorboard_dir, f"trial {trial.number}"),
-        save_dir=save_dir,
+        tensorboard_dir=os.path.join(tensorboard_dir, f"trial {tag}"),
+        save_dir=os.path.join(save_dir, f"trial {tag}"),
         device=device
     )
     if tuning:
@@ -120,8 +123,8 @@ if __name__ == "__main__":
     open_tensorboard(tensorboard_dir)
 
     # Find the best hyperparameters through optuna
-    if args.tune or True:
-        copy_file(args.config, os.path.join(base_output_path, "tuning_ranges.yaml"))
+    if args.tune:
+        copy_file(args.config, os.path.join(base_output_path))
         with open(args.config, 'r') as file:
             hp_ranges = yaml.safe_load(file)
         study = optuna.create_study(
@@ -131,7 +134,7 @@ if __name__ == "__main__":
             load_if_exists=True
         )
         study.set_metric_names(["Weighted F1-score"])
-        study.optimize(lambda trial: main(hp_ranges, trial=trial, tensorboard_dir=tensorboard_dir), n_trials=hp_ranges['n_trials'])
+        study.optimize(lambda trial: main(hp_ranges, trial=trial, tensorboard_dir=tensorboard_dir, save_dir=base_output_path), n_trials=hp_ranges['n_trials'])
         best_trial = study.best_trial
         config = best_trial.params
         config.update(hp_ranges['set'])
