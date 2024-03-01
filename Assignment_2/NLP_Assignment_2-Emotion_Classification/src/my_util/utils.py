@@ -1,7 +1,7 @@
 import os
 import shutil
 from collections import namedtuple
-from sklearn.metrics import confusion_matrix, accuracy_score, precision_score, f1_score
+from sklearn.metrics import confusion_matrix, accuracy_score, precision_score, f1_score, classification_report
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -30,6 +30,8 @@ class Metrics:
     def f1_score(self):
         return f1_score(self.true_labels, self.predicted_labels, average='weighted')
 
+    def classification_report(self):
+        return classification_report(self.true_labels, self.predicted_labels)
 
 def LossCurve(mean=np.array([]), time=np.array([]), std=np.array([]), tag="Curve"):
     """

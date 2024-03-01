@@ -77,7 +77,7 @@ def train_classifier(
                 one_hot_labels = torch.nn.functional.one_hot(labels.to(device), len(outputs.logits[0])).float()
                 loss = loss_fn(outputs.logits, one_hot_labels)
                 loss.backward()
-                # torch.nn.utils.clip_grad_norm_(classifier.parameters(), 1.0)
+                torch.nn.utils.clip_grad_norm_(classifier.parameters(), 1.0)
                 optimizer.step()
                 scheduler.step()
                 train_batch_losses.append(loss.detach().cpu().numpy())

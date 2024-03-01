@@ -1,6 +1,6 @@
 import argparse
 from datetime import datetime
-
+from sklearn.metrics import ConfusionMatrixDisplay
 import optuna
 from optuna.trial import TrialState
 from torch.nn import CrossEntropyLoss
@@ -45,7 +45,7 @@ def config_from_trial(hyperparameters, trial):
     return run_config
 
 
-def main(run_config, trial=None, log_dir=None, tensorboard_dir=None):
+def main(run_config, trial=None, save_dir=None, tensorboard_dir=None):
     """
     Runs an experiment named `run_tag` with hyperparameters from `run_config`. Results are stored in `log_dir`. Returns
     a tuple of training losses and testing losses over time.
@@ -53,7 +53,7 @@ def main(run_config, trial=None, log_dir=None, tensorboard_dir=None):
     Parameters
     ----------
     run_config : dict
-    log_dir : str
+    save_dir : str
     """
 
     # Get suggested HP's through optuna when tuning
@@ -102,20 +102,22 @@ def main(run_config, trial=None, log_dir=None, tensorboard_dir=None):
         train_loader,
         eval_loader,
         trial=trial,
-        tensorboard_dir=tensorboard_dir,
-        save_dir=os.path.join(log_dir, "models") if log_dir is not None else None,
+        tensorboard_dir=os.path.join(tensorboard_dir, f"trial {trial.number}"),
+        save_dir=save_dir,
         device=device
     )
     if tuning:
         return metrics[-1].f1_score()
     else:
-        return LossCurve(mean=training_losses, tag="Train"), LossCurve(mean=test_losses, tag="Test")
+        return LossCurve(mean=training_losses, tag="Train"), LossCurve(mean=test_losses, tag="Test"), metrics
 
 
 if __name__ == "__main__":
 
     base_output_path = os.path.join("data", "results", f"{args.run_id}")
     tensorboard_dir = os.path.join(base_output_path, "tensorboard")
+    print(f"Saving results to: {base_output_path}")
+    open_tensorboard(tensorboard_dir)
 
     # Find the best hyperparameters through optuna
     if args.tune or True:
@@ -124,28 +126,33 @@ if __name__ == "__main__":
             hp_ranges = yaml.safe_load(file)
         study = optuna.create_study(
             direction="maximize",
-            storage="sqlite:///db.sqlite3",
+            storage="sqlite:///data/results/" + args.run_id + "/tuning.db",
+            study_name="RoBERTa tuning",
+            load_if_exists=True
         )
-        study.optimize(lambda trial: main(hp_ranges, trial=trial), n_trials=hp_ranges['n_trials'])
+        study.set_metric_names(["Weighted F1-score"])
+        study.optimize(lambda trial: main(hp_ranges, trial=trial, tensorboard_dir=tensorboard_dir), n_trials=hp_ranges['n_trials'])
         best_trial = study.best_trial
         config = best_trial.params
+        config.update(hp_ranges['set'])
 
     # Use the hyperparameters specified in the config file
     else:
         with open(args.config, 'r') as file:
             config = yaml.safe_load(file)
 
-    # Copy hyperparameters to the results directory
-    print(f"Saving results to: {base_output_path}")
-    open_tensorboard(tensorboard_dir)
     with open(os.path.join(base_output_path, "hyperparameters.yaml"), 'w') as file:
         yaml.dump(config, file)
 
     # Loop over each configuration
-    train_curve, test_curve = main(
+    train_curve, test_curve, metrics = main(
         config,
-        log_dir=base_output_path,
+        save_dir=os.path.join(base_output_path, "models"),
         tensorboard_dir=tensorboard_dir
     )
-
+    print(metrics[-1].classification_report)
+    cmd = ConfusionMatrixDisplay(confusion_matrix=metrics[-1].confusion_matrix)
+    cmd.plot()
+    plt.savefig(os.path.join(base_output_path, "BestConfusionMatrix"))
+    plt.close()
     plot_curves([train_curve, test_curve], base_output_path, "LossCurve", save_data=True)
