@@ -1,10 +1,13 @@
 import os
 
 import numpy as np
+import optuna
 import torch.nn.functional
 from rich.progress import Progress, TextColumn, BarColumn, TimeRemainingColumn, MofNCompleteColumn
 from torch.utils.tensorboard import SummaryWriter
 from sklearn.metrics import accuracy_score, f1_score, classification_report
+
+from my_util import Metrics
 
 
 def train_classifier(
@@ -15,6 +18,7 @@ def train_classifier(
         scheduler,
         train_loader,
         test_loader,
+        trial=None,
         tensorboard_dir=None,
         save_dir=None,
         device='cuda' if torch.cuda.is_available() else 'cpu'
@@ -22,6 +26,7 @@ def train_classifier(
     """
     Parameters
     ----------
+    trial : optuna.Trial
     classifier : torch.nn.Module
     config : dict
         A dictionary that contains all hyperparameters
@@ -33,13 +38,13 @@ def train_classifier(
         Directory where the model state_dicts are saved after each epoch (Default is None and means no saving).
     tensorboard_dir : str
         Directory where tensorboard logs are stored (default is None and means no logging).
-    device : str
+    device : torch.device
     scheduler :
         The learning rate scheduler
 
     Returns
     -------
-    tuple :
+    tuple[list, list, list[Metrics]] :
         A tuple of list of training losses and test losses over time.
     """
 
@@ -59,7 +64,7 @@ def train_classifier(
     train_batch_losses = []
     train_epoch_losses = []
     test_epoch_losses = []
-    classification_reports = []
+    metrics = []
     for epoch in range(config['n_epochs']):
 
         # Training
@@ -69,16 +74,15 @@ def train_classifier(
             for batch , (ids, attention_mask, token_type_ids, labels) in enumerate(train_loader):
                 classifier.zero_grad()
                 outputs = classifier(ids.to(device), attention_mask.to(device), token_type_ids.to(device))
-                probabilities = torch.nn.functional.softmax(outputs.logits, dim=1)
                 one_hot_labels = torch.nn.functional.one_hot(labels.to(device), len(outputs.logits[0])).float()
-                loss = loss_fn(probabilities, one_hot_labels)
+                loss = loss_fn(outputs.logits, one_hot_labels)
                 loss.backward()
                 # torch.nn.utils.clip_grad_norm_(classifier.parameters(), 1.0)
                 optimizer.step()
                 scheduler.step()
                 train_batch_losses.append(loss.detach().cpu().numpy())
                 progress.update(training, advance=1)
-            train_epoch_losses.append(np.mean(train_batch_losses[-len(train_loader):]))
+            train_epoch_losses.append(float(np.mean(train_batch_losses[-len(train_loader):])))
 
             # Tensorboard logging
             if writer is not None:
@@ -94,11 +98,15 @@ def train_classifier(
                 torch.save(classifier.state_dict(), os.path.join(save_dir, f"model.pt"))
 
         # Testing
-        loss, report = test_classifier(classifier, loss_fn, test_loader, epoch, device, writer)
+        loss, metric = test_classifier(classifier, loss_fn, test_loader, epoch, trial=trial, device=device, writer=writer)
         test_epoch_losses.append(loss)
-        classification_reports.append(report)
+        metrics.append(metric)
 
-    return train_epoch_losses, test_epoch_losses, classification_reports
+        trial.report(metric.f1_score(), epoch)
+        if trial.should_prune():
+            raise optuna.TrialPruned()
+
+    return train_epoch_losses, test_epoch_losses, metrics
 
 
 def test_classifier(
@@ -106,9 +114,25 @@ def test_classifier(
         loss_fn,
         test_loader,
         epoch,
+        trial=None,
         device='cuda' if torch.cuda.is_available() else 'cpu',
         writer=None
 ):
+    """
+
+    Parameters
+    ----------
+    epoch :
+    writer :
+    trial : optuna.Trial
+    classifier : torch.nn.Module
+    loss_fn :  torch.nn.modules.loss._WeightedLoss
+    test_loader : torch.utils.data.DataLoader
+    device : torch.device
+    Returns
+    -------
+    tuple[float, Metrics]
+    """
 
     # Initialize progressbar
     progress = Progress(
@@ -129,10 +153,9 @@ def test_classifier(
         for batch, (ids, attention_mask, token_type_ids, labels) in enumerate(test_loader):
             with torch.no_grad():
                 outputs = classifier(ids.to(device), attention_mask.to(device), token_type_ids.to(device))
-                probabilities = torch.nn.functional.softmax(outputs.logits, dim=1)
                 one_hot_labels = torch.nn.functional.one_hot(labels.to(device), len(outputs.logits[0])).float()
-                loss = loss_fn(probabilities, one_hot_labels)
-                batch_preds = probabilities.argmax(dim=1).detach().cpu()
+                loss = loss_fn(outputs.logits, one_hot_labels)
+                batch_preds = outputs.logits.argmax(dim=1).detach().cpu()
 
             test_batch_losses.append(loss.cpu().numpy())
             progress.update(testing, advance=1)
@@ -141,7 +164,6 @@ def test_classifier(
         pred_labels = torch.cat([pred_labels, batch_preds], dim=0)
         true_labels = torch.cat([true_labels, labels], dim=0)
         epoch_loss = np.mean(test_batch_losses[-len(test_loader):])
-        report = classification_report(true_labels, pred_labels, labels=true_labels.unique())
 
         # Tensorboard logging
         if writer is not None:
@@ -160,4 +182,4 @@ def test_classifier(
                 f1_score(true_labels, pred_labels, average='weighted'),
                 global_step=epoch
             )
-    return epoch_loss, report
+    return epoch_loss, Metrics(true_labels, pred_labels)

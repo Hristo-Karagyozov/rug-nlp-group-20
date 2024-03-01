@@ -1,6 +1,7 @@
 import os
 import shutil
 from collections import namedtuple
+from sklearn.metrics import confusion_matrix, accuracy_score, precision_score, f1_score
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -10,6 +11,24 @@ from tensorboard import program
 
 Bar = namedtuple("Bar", ("mean", "std", "tag"))
 Curve = namedtuple("Curve", ("time", "mean", "std", "tag"))
+
+
+class Metrics:
+    def __init__(self, true_labels, predicted_labels):
+        self.true_labels = true_labels
+        self.predicted_labels = predicted_labels
+
+    def confusion_matrix(self):
+        return confusion_matrix(self.true_labels, self.predicted_labels)
+
+    def accuracy(self):
+        return accuracy_score(self.true_labels, self.predicted_labels)
+
+    def precision(self):
+        return precision_score(self.true_labels, self.predicted_labels, average='weighted')
+
+    def f1_score(self):
+        return f1_score(self.true_labels, self.predicted_labels, average='weighted')
 
 
 def LossCurve(mean=np.array([]), time=np.array([]), std=np.array([]), tag="Curve"):

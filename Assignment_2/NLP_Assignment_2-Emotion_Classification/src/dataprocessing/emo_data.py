@@ -23,7 +23,7 @@ class EmoData(Dataset):
         self.article_ids = self.data.article_id
         self.essay = self.data.essay
         self.labels = self.data.emotion
-        self.emotion_to_int = {emotion : idx for idx, emotion in enumerate(self.labels.unique())}
+        self.emotion_to_int = {emotion : idx for idx, emotion in enumerate(sorted(self.labels.unique()))}
 
     def __len__(self):
         return len(self.essay)
@@ -46,7 +46,7 @@ class EmoData(Dataset):
         token_type_ids = inputs['token_type_ids']
 
         return DataRet(
-            torch.tensor(ids, dtype=torch.long),
+            torch.tensor(ids, dtype=torch.long,),
             torch.tensor(mask, dtype=torch.long),
             torch.tensor(token_type_ids, dtype=torch.long),
             torch.tensor(self.emotion_to_int[self.labels[idx]], dtype=torch.long)
