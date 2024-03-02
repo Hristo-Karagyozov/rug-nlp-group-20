@@ -1,16 +1,19 @@
 import string
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
+import tensorflow as tf
 from gensim.models import Word2Vec
-from keras import optimizers
 from keras.layers import Dense
 from keras.models import Sequential
 from nltk.corpus import stopwords
+from sklearn.metrics import ConfusionMatrixDisplay
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import OneHotEncoder
 from tqdm import tqdm
+
+from src.my_util import Metrics
 
 """
 This file contains code taken from the word embedding tutorial. It uses the word2vec model to classify the tweet 
@@ -68,8 +71,9 @@ def compute_doc_vectors(docs, w2v_model):
 
 def build_model(input_shape, num_classes):
     model = Sequential()
-    model.add(Dense(16, activation='relu', input_shape=input_shape))
-    model.add(Dense(num_classes, activation='softmax'))  # Change to softmax and num_classes neurons
+    model.add(Dense(512, activation='relu'))
+    model.add(Dense(256, activation='relu'))
+    model.add(Dense(num_classes, activation='softmax'))
     return model
 
 
@@ -95,16 +99,29 @@ def main():
     # build the classification model
     num_classes = encoded_targets.shape[1]  # Number of emotion classes
     model = build_model(input_shape=(train_x_vectors.shape[1],), num_classes=num_classes)
-    model.compile(optimizer=optimizers.Adam(learning_rate=0.0001), loss='categorical_crossentropy',
+
+    model.compile(optimizer=tf.keras.optimizers.legacy.Adam(learning_rate=0.0001, decay=0.004),
+                  loss='categorical_crossentropy',
                   metrics=['accuracy'])
 
     # train the model
     model.fit(train_x_vectors, train_y)
 
     # evaluate
-    loss, accuracy = model.evaluate(val_x_vectors, val_y)
+    val_predictions = model.predict(val_x_vectors)
+    predicted_labels = np.argmax(val_predictions, axis=1)  # Predicted labels
+    true_labels = np.argmax(val_y, axis=1)  # True labels
+
+    # calculate metrics
+    metrics = Metrics(true_labels, predicted_labels)
+    print(metrics.classification_report)
+    cmd = ConfusionMatrixDisplay(confusion_matrix=metrics.confusion_matrix)
+    cmd.plot()
+    plt.show()
+    # plt.savefig("data/results/tf_idf/confusion_matrix")
+    plt.close()
+
     visualize_class_distribution(df)
-    print(f'Validation Accuracy: {accuracy * 100:.2f}%')
 
 
 if __name__ == "__main__":
