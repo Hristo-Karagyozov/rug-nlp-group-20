@@ -1,0 +1,38 @@
+n_trials : 40
+set:
+    model : roberta-base
+    test_batch_size : 16
+    context_window  : 256
+    remove_neutral : False
+    freeze_weights : 0
+    n_epochs : 8
+tunable:
+    grayscale:
+        min  : 0
+        max  : 1
+        type : int
+        log : False
+
+    learning_rate:
+        min  : 0.0000001
+        max  : 0.001
+        type : float
+        log : True
+
+    weight_decay:
+        min  : 0.001
+        max  : 0.3
+        type : float
+        log : True
+
+    batch_size:
+        min  : 4
+        max  : 32
+        type : int
+        log  : False
+
+    warmup_fraction:
+        min  : 0
+        max  : 0.5
+        type : float
+        log  : False
