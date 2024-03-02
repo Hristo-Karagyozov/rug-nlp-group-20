@@ -65,18 +65,17 @@ def main(run_config, trial=None, save_dir=None, tensorboard_dir=None):
         run_config = config_from_trial(run_config, trial)
         tag = trial.number
 
-
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     # Note that the training set is split when tuning, while the test set is used otherwise
-    tokenizer = RobertaTokenizer.from_pretrained(run_config['model'], truncation=True, do_lower_case=True)
-    dataset = EmoData(args.train_data, tokenizer, run_config['context_window'])
+    tokenizer = RobertaTokenizer.from_pretrained(run_config['model'])
+    dataset = EmoData(args.train_data, tokenizer, run_config['context_window'], remove_neutral=run_config['remove_neutral'])
     if tuning:
-        training_data, validation_data = torch.utils.data.random_split(dataset, [0.9, 0.1])
+        training_data, validation_data = torch.utils.data.random_split(dataset, [0.7, 0.3])
         train_loader = DataLoader(training_data, batch_size=run_config['batch_size'], shuffle=True)
         eval_loader = DataLoader(validation_data, batch_size=run_config['test_batch_size'], shuffle=True)
     else:
-        test_data = EmoData(args.test_data, tokenizer, run_config['context_window'])
+        test_data = EmoData(args.test_data, tokenizer, run_config['context_window'], remove_neutral=run_config['remove_neutral'])
         train_loader = DataLoader(dataset, batch_size=run_config['batch_size'], shuffle=True)
         eval_loader = DataLoader(test_data, batch_size=run_config['test_batch_size'], shuffle=True)
 
@@ -107,7 +106,7 @@ def main(run_config, trial=None, save_dir=None, tensorboard_dir=None):
         eval_loader,
         trial=trial,
         tensorboard_dir=os.path.join(tensorboard_dir, f"trial {tag}"),
-        save_dir=os.path.join(save_dir, f"trial {tag}"),
+        save_dir=os.path.join(save_dir, f"trial {tag}") if save_dir is not None else None,
         device=device
     )
     if tuning:
@@ -134,8 +133,7 @@ if __name__ == "__main__":
             study_name="RoBERTa tuning",
             load_if_exists=True
         )
-        study.set_metric_names(["Weighted F1-score"])
-        study.optimize(lambda trial: main(hp_ranges, trial=trial, tensorboard_dir=tensorboard_dir, save_dir=base_output_path), n_trials=hp_ranges['n_trials'])
+        study.optimize(lambda trial: main(hp_ranges, trial=trial, tensorboard_dir=tensorboard_dir), n_trials=hp_ranges['n_trials'])
         best_trial = study.best_trial
         config = best_trial.params
         config.update(hp_ranges['set'])
