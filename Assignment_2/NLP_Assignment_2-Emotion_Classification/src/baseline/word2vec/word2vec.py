@@ -11,8 +11,7 @@ import numpy as np
 
 
 def load_data():
-    df = pd.read_csv("F:/University/Courses/NLP/Assignments/Assignment_2/"
-                     "NLP_Assignment_2-Emotion_Classification/data/raw/train.csv", delimiter=";",
+    df = pd.read_csv("/data/raw/train.csv", delimiter=";",
                      names=['article_id', 'essay', 'emotion'])
     return df
 
